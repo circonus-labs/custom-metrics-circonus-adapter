@@ -79,6 +79,21 @@ func (p *CirconusProvider) GetMetricBySelector(namespace string, selector labels
 	return nil, NewOperationNotSupportedError("GetMetricByName not supported at this time")
 }
 
+func CreateURLWithQuery(uri string, param map[string]interface{}) (string, error) {
+	urlObj, err := url.Parse(uri)
+	if err != nil {
+		return uri, err
+	}
+
+	query := urlObj.Query()
+	for k, v := range param {
+		query.Set(k, fmt.Sprintf("%v", v))
+	}
+
+	urlObj.RawQuery = query.Encode()
+	return urlObj.String(), nil
+}
+
 // GetExternalMetric queries Circonus using CAQL to fetch data
 // namespace is ignored as well as labels.Selector
 func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
@@ -90,7 +105,13 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	endTime := time.Now()
 	startTime := endTime.Add(-(5 * time.Minute))
 
-	jsonBytes, err := p.apiClient.Get("/caql?period=60&start=" + string(startTime.Unix()) + "&end=" + string(endTime.Unix()) + "query=" + url.QueryEscape(caqlQuery))
+	param := map[string]interface{}{
+		"period": 60,
+		"start":  startTime.Unix(),
+		"end":    endTime.Unix(),
+		"query":  caqlQuery,
+	}
+	jsonBytes, err := p.apiClient.Get(CreateURLWithQuery("/caql", param))
 	if err != nil {
 		return nil, err
 	}
