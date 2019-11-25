@@ -1,3 +1,4 @@
+
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -72,7 +73,7 @@ spec:
     spec:
       serviceAccountName: custom-metrics-circonus-adapter
       containers:
-      - image: gcr.io/google-containers/custom-metrics-circonus-adapter:v0.10.0
+      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.4
         imagePullPolicy: Always
         name: pod-custom-metrics-circonus-adapter
         command:

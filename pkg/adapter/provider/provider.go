@@ -111,7 +111,12 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		"end":    endTime.Unix(),
 		"query":  caqlQuery,
 	}
-	jsonBytes, err := p.apiClient.Get(CreateURLWithQuery("/caql", param))
+	queryString, err := CreateURLWithQuery("/caql", param)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonBytes, err := p.apiClient.Get(queryString)
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +124,11 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	var result map[string]interface{}
 	json.Unmarshal(jsonBytes, &result)
 
-	var data [][]float64
 	if _, ok := result["_data"]; !ok {
 		return nil, apierr.NewInternalError(fmt.Errorf("Circonus response missing _data field"))
 	}
 
-	data = result["_data"].([][]float64)
+	data := result["_data"].([]interface{})
 	if len(data) <= 0 {
 		// This shouldn't happen with correct query to Circonus
 		return nil, apierr.NewInternalError(fmt.Errorf("Empty time series returned from Circonus CAQL query"))
@@ -132,8 +136,8 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 
 	// point is an array of [time, value1, value2, ..., valueN]
 	// we will use, time and value1
-	point := data[len(data)-1]
-	resultEndTime := point[0]
+	point := data[len(data)-1].([]interface{})
+	resultEndTime := point[0].(float64)
 	if time.Unix(int64(resultEndTime), 0).After(endTime) {
 		return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %s", resultEndTime))
 	}
@@ -141,7 +145,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		Timestamp:  metav1.NewTime(time.Unix(int64(resultEndTime), 0)),
 		MetricName: caqlQuery,
 	}
-	value := point[1]
+	value := point[1].(float64)
 	metricValue.Value = *resource.NewMilliQuantity(int64(value*1000), resource.DecimalSI)
 	metricValues = append(metricValues, metricValue)
 	return &external_metrics.ExternalMetricValueList{
