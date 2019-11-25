@@ -52,12 +52,34 @@ them to scale your application, following [HPA walkthrough].
       ```
       kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $(gcloud config get-value account)
       ```
-
-1. Start *Custom Metrics - Circonus Adapter*.
+2. Start *Custom Metrics - Circonus Adapter*.
 
   ```sh
   kubectl apply -f https://raw.githubusercontent.com/rileyberton/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml
   ```
+
+3. Run a test query.
+
+```sh
+kubectl get --raw '/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram:create{1,2,3,4,5}|histogram:mean()?labelSelector=circonus_api_key=<your api key>' | jq
+{
+  "kind": "ExternalMetricValueList",
+  "apiVersion": "external.metrics.k8s.io/v1beta1",
+  "metadata": {
+    "selfLink": "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram:create%7B1,2,3,4,5%7D%7Chistogram:mean%28%29"
+  },
+  "items": [
+    {
+      "metricName": "histogram:create{1,2,3,4,5}|histogram:mean()",
+      "metricLabels": null,
+      "timestamp": "2019-11-25T20:53:00Z",
+      "value": "3048m"
+    }
+  ]
+}
+```
+
+Replace `<your api key>` above with your actual API key.
 
 ### Metrics available from Circonus
 

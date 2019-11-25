@@ -73,12 +73,11 @@ spec:
     spec:
       serviceAccountName: custom-metrics-circonus-adapter
       containers:
-      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.4
+      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.7
         imagePullPolicy: Always
         name: pod-custom-metrics-circonus-adapter
         command:
         - /adapter
-        - --circonus-api-key=
         resources:
           limits:
             cpu: 250m

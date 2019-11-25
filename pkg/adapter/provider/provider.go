@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/klog"
 
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
@@ -49,15 +50,17 @@ func (c realClock) Now() time.Time {
 
 // StackdriverProvider is a provider of custom metrics from Stackdriver.
 type CirconusProvider struct {
-	kubeClient *corev1.CoreV1Client
-	apiClient  *circonus.API
+	kubeClient     *corev1.CoreV1Client
+	circonusApiURL string
+	apiClients     map[string]*circonus.API
 }
 
-// NewStackdriverProvider creates a StackdriverProvider
-func NewCirconusProvider(kubeClient *corev1.CoreV1Client, apiclient *circonus.API) provider.MetricsProvider {
+// NewCirconusProvider creates a CirconusProvider
+func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string) provider.MetricsProvider {
 	return &CirconusProvider{
-		kubeClient: kubeClient,
-		apiClient:  apiclient,
+		kubeClient:     kubeClient,
+		circonusApiURL: circonus_api_url,
+		apiClients:     make(map[string]*circonus.API, 0),
 	}
 }
 
@@ -111,12 +114,53 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		"end":    endTime.Unix(),
 		"query":  caqlQuery,
 	}
+
+	var apiClient *circonus.API = nil
+
+	klog.Infof("Incoming query: %s", caqlQuery)
+	klog.Infof("Incoming selector: %s", metricSelector.String())
+
+	// lookup the apiClient using the metric_selector
+	reqs, _ := metricSelector.Requirements()
+
+	for _, req := range reqs {
+		if req.Key() == "circonus_api_key" {
+			var key string
+			var ok bool
+			if key, ok = req.Values().PopAny(); !ok {
+				// no key, return empty set
+				return &external_metrics.ExternalMetricValueList{
+					Items: metricValues,
+				}, nil
+			}
+
+			if c, ok := p.apiClients[key]; ok {
+				apiClient = c
+				break
+			}
+
+			apiConfig := &circonus.Config{
+				URL:      p.circonusApiURL,
+				TokenKey: key,
+				TokenApp: "custom-metrics-circonus-adapter",
+			}
+
+			apiclient, err := circonus.NewAPI(apiConfig)
+			if err != nil {
+				return nil, err
+			}
+			p.apiClients[key] = apiclient
+			apiClient = apiclient
+
+		}
+	}
+
 	queryString, err := CreateURLWithQuery("/caql", param)
 	if err != nil {
 		return nil, err
 	}
 
-	jsonBytes, err := p.apiClient.Get(queryString)
+	jsonBytes, err := apiClient.Get(queryString)
 	if err != nil {
 		return nil, err
 	}

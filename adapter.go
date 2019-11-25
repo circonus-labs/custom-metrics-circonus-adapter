@@ -19,7 +19,6 @@ package main
 
 import (
 	"flag"
-	circonus "github.com/circonus-labs/go-apiclient"
 	coreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"os"
 
@@ -38,9 +37,6 @@ type CirconusAdapter struct {
 }
 
 type circonusAdapterServerOptions struct {
-	// the circonus API key to use
-	apiKey string
-
 	// the circonus provider URL
 	providerAPIURLAttr string
 }
@@ -56,18 +52,7 @@ func (a *CirconusAdapter) makeProviderOrDie(o *circonusAdapterServerOptions) pro
 		klog.Fatalf("unable to construct client: %v", err)
 	}
 
-	apiConfig := &circonus.Config{
-		URL:      o.providerAPIURLAttr,
-		TokenKey: o.apiKey,
-		TokenApp: "custom-metrics-circonus-adapater",
-	}
-
-	apiclient, err := circonus.NewAPI(apiConfig)
-	if err != nil {
-		klog.Fatalf("Failed to create Circonus goapiclient: %v", err)
-	}
-
-	return adapter.NewCirconusProvider(client, apiclient)
+	return adapter.NewCirconusProvider(client, o.providerAPIURLAttr)
 }
 
 func main() {
@@ -89,8 +74,6 @@ func main() {
 
 	flags.StringVar(&serverOptions.providerAPIURLAttr, "circonus-api-url", serverOptions.providerAPIURLAttr,
 		"whether to use new Stackdriver resource model")
-	flags.StringVar(&serverOptions.apiKey, "circonus-api-key", serverOptions.apiKey,
-		"whether to enable Custom Metrics API")
 
 	flags.Parse(os.Args)
 
