@@ -73,7 +73,7 @@ spec:
     spec:
       serviceAccountName: custom-metrics-circonus-adapter
       containers:
-      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.7
+      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.9
         imagePullPolicy: Always
         name: pod-custom-metrics-circonus-adapter
         command:

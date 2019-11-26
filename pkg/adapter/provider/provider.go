@@ -165,6 +165,8 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		return nil, err
 	}
 
+	klog.Infof("Response: %s", string(jsonBytes))
+
 	var result map[string]interface{}
 	json.Unmarshal(jsonBytes, &result)
 
@@ -180,18 +182,24 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 
 	// point is an array of [time, value1, value2, ..., valueN]
 	// we will use, time and value1
-	point := data[len(data)-1].([]interface{})
-	resultEndTime := point[0].(float64)
-	if time.Unix(int64(resultEndTime), 0).After(endTime) {
-		return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %s", resultEndTime))
+	// because we are using the last 5 minutes and data can be delayed return all 5 minutes of data to k8s and let it figure
+	// out the value
+	for _, p := range data {
+		point := p.([]interface{})
+		resultEndTime := point[0].(float64)
+		klog.Infof("Result timestamp: %f", resultEndTime)
+		if time.Unix(int64(resultEndTime), 0).After(endTime) {
+			return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %s", resultEndTime))
+		}
+		metricValue := external_metrics.ExternalMetricValue{
+			Timestamp:  metav1.NewTime(time.Unix(int64(resultEndTime), 0)),
+			MetricName: caqlQuery,
+		}
+		value := point[1].(float64)
+		klog.Infof("Result value: %f", value)
+		metricValue.Value = *resource.NewMilliQuantity(int64(value*1000), resource.DecimalSI)
+		metricValues = append(metricValues, metricValue)
 	}
-	metricValue := external_metrics.ExternalMetricValue{
-		Timestamp:  metav1.NewTime(time.Unix(int64(resultEndTime), 0)),
-		MetricName: caqlQuery,
-	}
-	value := point[1].(float64)
-	metricValue.Value = *resource.NewMilliQuantity(int64(value*1000), resource.DecimalSI)
-	metricValues = append(metricValues, metricValue)
 	return &external_metrics.ExternalMetricValueList{
 		Items: metricValues,
 	}, nil
