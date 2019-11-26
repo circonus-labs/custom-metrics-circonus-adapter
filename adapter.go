@@ -31,7 +31,7 @@ import (
 	adapter "github.com/rileyberton/custom-metrics-circonus-adapter/pkg/adapter/provider"
 )
 
-// StackdriverAdapter is an adapter for Stackdriver
+// CirconusAdapter is an adapter for Circonus CAQL
 type CirconusAdapter struct {
 	basecmd.AdapterBase
 }
@@ -73,7 +73,7 @@ func main() {
 	}
 
 	flags.StringVar(&serverOptions.providerAPIURLAttr, "circonus-api-url", serverOptions.providerAPIURLAttr,
-		"whether to use new Stackdriver resource model")
+		"The Circonus API URL, defaults to https://api.circonus.com/v2")
 
 	flags.Parse(os.Args)
 
