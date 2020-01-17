@@ -48,7 +48,7 @@ func (c realClock) Now() time.Time {
 	return time.Now()
 }
 
-// StackdriverProvider is a provider of custom metrics from Stackdriver.
+// CirconusProvider is a provider of custom metrics from Circonus CAQL.
 type CirconusProvider struct {
 	kubeClient     *corev1.CoreV1Client
 	circonusApiURL string
@@ -102,23 +102,13 @@ func CreateURLWithQuery(uri string, param map[string]interface{}) (string, error
 func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	metricValues := []external_metrics.ExternalMetricValue{}
 
-	caqlQuery := info.Metric
+	var caqlQuery string
 
 	// get last 5 minutes
 	endTime := time.Now()
 	startTime := endTime.Add(-(5 * time.Minute))
 
-	param := map[string]interface{}{
-		"period": 60,
-		"start":  startTime.Unix(),
-		"end":    endTime.Unix(),
-		"query":  caqlQuery,
-	}
-
 	var apiClient *circonus.API = nil
-
-	klog.Infof("Incoming query: %s", caqlQuery)
-	klog.Infof("Incoming selector: %s", metricSelector.String())
 
 	// lookup the apiClient using the metric_selector
 	reqs, _ := metricSelector.Requirements()
@@ -151,9 +141,28 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 			}
 			p.apiClients[key] = apiclient
 			apiClient = apiclient
-
+		}
+		if req.Key() == "caql" {
+			var key string
+			var ok bool
+			if key, ok = req.Values().PopAny(); !ok {
+				// no key, return empty set
+				return &external_metrics.ExternalMetricValueList{
+					Items: metricValues,
+				}, nil
+			}
+			caqlQuery = key
 		}
 	}
+	param := map[string]interface{}{
+		"period": 60,
+		"start":  startTime.Unix(),
+		"end":    endTime.Unix(),
+		"query":  caqlQuery,
+	}
+
+	klog.Infof("Incoming query: %s", caqlQuery)
+	klog.Infof("Incoming selector: %s", metricSelector.String())
 
 	queryString, err := CreateURLWithQuery("/caql", param)
 	if err != nil {
@@ -193,7 +202,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		}
 		metricValue := external_metrics.ExternalMetricValue{
 			Timestamp:  metav1.NewTime(time.Unix(int64(resultEndTime), 0)),
-			MetricName: caqlQuery,
+			MetricName: info.Metric,
 		}
 		value := point[1].(float64)
 		klog.Infof("Result value: %f", value)
