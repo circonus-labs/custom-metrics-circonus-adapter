@@ -19,7 +19,9 @@ package provider
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"os"
 	"time"
 
 	"encoding/json"
@@ -36,6 +38,8 @@ import (
 
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 type clock interface {
@@ -52,16 +56,57 @@ func (c realClock) Now() time.Time {
 type CirconusProvider struct {
 	kubeClient     *corev1.CoreV1Client
 	circonusApiURL string
+	config         *AdapterConfig
+	queryMap       map[string]*Query
 	apiClients     map[string]*circonus.API
 }
 
-// NewCirconusProvider creates a CirconusProvider
-func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string) provider.MetricsProvider {
-	return &CirconusProvider{
-		kubeClient:     kubeClient,
-		circonusApiURL: circonus_api_url,
-		apiClients:     make(map[string]*circonus.API, 0),
+// FromYAML loads the configuration from a blob of YAML.
+func FromYAML(contents []byte) (*AdapterConfig, error) {
+	var cfg AdapterConfig
+	if err := yaml.UnmarshalStrict(contents, &cfg); err != nil {
+		return nil, fmt.Errorf("unable to parse query config: %v", err)
 	}
+	return &cfg, nil
+}
+
+// NewCirconusProvider creates a CirconusProvider
+func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string, configFile string) provider.MetricsProvider {
+
+	file, err := os.Open(configFile)
+	defer file.Close()
+	if err != nil {
+		klog.Errorf("unable to load adapter config file: %v", err)
+		return nil
+	}
+	contents, err := ioutil.ReadAll(file)
+	if err != nil {
+		klog.Errorf("unable to load adapter config file: %v", err)
+		return nil
+	}
+	cfg, err := FromYAML(contents)
+	if err != nil {
+		klog.Errorf("unable to load adapter config file: %v", err)
+		return nil
+	}
+
+	provider := CirconusProvider{}
+	provider.queryMap = make(map[string]*Query, 0)
+	provider.apiClients = make(map[string]*circonus.API, 0)
+	provider.config = cfg
+	provider.circonusApiURL = circonus_api_url
+
+	// go through the cfg and make the external name -> Query map.
+	// also checks the config for uniqueness of external_name
+	for _, q := range cfg.Queries {
+		if _, found := provider.queryMap[q.ExternalName]; found {
+			klog.Errorf("Duplicate external name in config: %s", q.ExternalName)
+			return nil
+		}
+		provider.queryMap[q.ExternalName] = &q
+	}
+
+	return &provider
 }
 
 // ListAllMetrics returns all custom metrics available.
@@ -102,67 +147,46 @@ func CreateURLWithQuery(uri string, param map[string]interface{}) (string, error
 func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	metricValues := []external_metrics.ExternalMetricValue{}
 
-	var caqlQuery string
+	// get the query from the configMap
+	var query *Query = nil
+	var ok bool = false
+	if query, ok = p.queryMap[info.Metric]; !ok {
+		// no matching query, return empty set
+		return &external_metrics.ExternalMetricValueList{
+			Items: metricValues,
+		}, nil
+	}
 
 	// get last 5 minutes
 	endTime := time.Now()
-	startTime := endTime.Add(-(5 * time.Minute))
+	startTime := endTime.Add(-(query.Window))
 
 	var apiClient *circonus.API = nil
-
-	// lookup the apiClient using the metric_selector
-	reqs, _ := metricSelector.Requirements()
-
-	for _, req := range reqs {
-		if req.Key() == "circonus_api_key" {
-			var key string
-			var ok bool
-			if key, ok = req.Values().PopAny(); !ok {
-				// no key, return empty set
-				return &external_metrics.ExternalMetricValueList{
-					Items: metricValues,
-				}, nil
-			}
-
-			if c, ok := p.apiClients[key]; ok {
-				apiClient = c
-				break
-			}
-
-			apiConfig := &circonus.Config{
-				URL:      p.circonusApiURL,
-				TokenKey: key,
-				TokenApp: "custom-metrics-circonus-adapter",
-			}
-
-			apiclient, err := circonus.NewAPI(apiConfig)
-			if err != nil {
-				return nil, err
-			}
-			p.apiClients[key] = apiclient
-			apiClient = apiclient
+	if c, ok := p.apiClients[query.CirconusAPIKey]; ok {
+		apiClient = c
+	} else {
+		apiConfig := &circonus.Config{
+			URL:      p.circonusApiURL,
+			TokenKey: query.CirconusAPIKey,
+			TokenApp: "custom-metrics-circonus-adapter",
 		}
-		if req.Key() == "caql" {
-			var key string
-			var ok bool
-			if key, ok = req.Values().PopAny(); !ok {
-				// no key, return empty set
-				return &external_metrics.ExternalMetricValueList{
-					Items: metricValues,
-				}, nil
-			}
-			caqlQuery = key
+
+		apiclient, err := circonus.NewAPI(apiConfig)
+		if err != nil {
+			return nil, err
 		}
+		p.apiClients[query.CirconusAPIKey] = apiclient
+		apiClient = apiclient
 	}
+
 	param := map[string]interface{}{
-		"period": 60,
+		"period": query.Stride.Seconds(),
 		"start":  startTime.Unix(),
 		"end":    endTime.Unix(),
-		"query":  caqlQuery,
+		"query":  query.CAQL,
 	}
 
-	klog.Infof("Incoming query: %s", caqlQuery)
-	klog.Infof("Incoming selector: %s", metricSelector.String())
+	klog.Infof("Incoming query: %s", query.CAQL)
 
 	queryString, err := CreateURLWithQuery("/caql", param)
 	if err != nil {
@@ -215,7 +239,13 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 }
 
 // ListAllExternalMetrics returns a list of available external metrics.
-// Not implemented (currently returns empty list).
+// Returns the names of everything configured.
 func (p *CirconusProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	return []provider.ExternalMetricInfo{}
+	l := make([]provider.ExternalMetricInfo, 0)
+	for en := range p.queryMap {
+		emi := provider.ExternalMetricInfo{}
+		emi.Metric = en
+		l = append(l, emi)
+	}
+	return l
 }

@@ -39,6 +39,8 @@ type CirconusAdapter struct {
 type circonusAdapterServerOptions struct {
 	// the circonus provider URL
 	providerAPIURLAttr string
+	// the config file path
+	configFile string
 }
 
 func (a *CirconusAdapter) makeProviderOrDie(o *circonusAdapterServerOptions) provider.MetricsProvider {
@@ -52,7 +54,7 @@ func (a *CirconusAdapter) makeProviderOrDie(o *circonusAdapterServerOptions) pro
 		klog.Fatalf("unable to construct client: %v", err)
 	}
 
-	return adapter.NewCirconusProvider(client, o.providerAPIURLAttr)
+	return adapter.NewCirconusProvider(client, o.providerAPIURLAttr, o.configFile)
 }
 
 func main() {
@@ -74,6 +76,8 @@ func main() {
 
 	flags.StringVar(&serverOptions.providerAPIURLAttr, "circonus-api-url", serverOptions.providerAPIURLAttr,
 		"The Circonus API URL, defaults to https://api.circonus.com/v2")
+	flags.StringVar(&serverOptions.configFile, "config", serverOptions.configFile,
+		"The full path to the config file to use for query config")
 
 	flags.Parse(os.Args)
 

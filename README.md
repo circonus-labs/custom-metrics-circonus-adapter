@@ -52,34 +52,82 @@ them to scale your application, following [HPA walkthrough].
       ```
       kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $(gcloud config get-value account)
       ```
-2. Start *Custom Metrics - Circonus Adapter*.
+2. Create your autoscaling CAQL query config file
+
+Autoscaling based on external metrics requires predefinig all your queries in a config file to be passed to the 
+custom metrics adapter when it starts.  This is due to a limitation in how the external metric is defined
+in the HPA config: there is no reasonable way to send a complex query in the external metric config and the 
+recommended way for now is to define these complex queries in your custom metrics adapater config and expose the
+results with simple names that can be used by the HPA for scaling.  This approach closely follows the 
+prometheus k8s adapter.
+
+To create your query config map you can follow the `deploy/production/query_config_map_template.yaml` file and edit
+it to include the CAQL statements and names you require for your own autoscaling needs.  A config map might resemble:
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: adapter-config
+  namespace: custom-metrics
+data:
+  config.yaml: |
+    queries:
+    - circonus_api_key: '12345678-1234-1234-1234-123456789012'
+      caql: 'histogram:create{1,2,3,4,5}|histogram:mean()'
+      external_name: histogram_mean
+      window: 5m
+      stride: 1m
+```
+
+`queries` is a list of queries.  Each can be associated with a different API key in case you need to pull data
+from more than 1 circonus account.
+
+  `circonus_api_key` is the API Token that is associated with the circonus account you want to query data from.  
+  Importantly, you cannot query data across accounts with this adapter.
+
+  `caql` is the CAQL statement you wish to execute.  It's important to note that the CAQL statement must produce a 
+  single number per time period (stride).  If you execute a CAQL statement that produces multiple streams of data 
+  at each stride, this adapter will use the first stream in the results so take care.  Also, returning histogram 
+  data will notwork at all, you have to aggregate the data down to a single number if you have a distribution.
+
+  `external_name` is the name you want to call the results.  This is the name you would refer to in your horizontal pod
+  autoscaler configuration.  This must be unique across all the queries in your configuration.  The adapter will error
+  out if there are duplicate names in your config.
+
+  `window` is the time window of data to fetch.  Often metrics that run up against the edge of `now` are incomplete. 
+  `window` allows you to fetch more than 1 point in time.  If you use `5m` for `window` with a `stride` of `1m`, it 
+  will return the last 5 minutes of data with 1 minute granularity.  This defaults to `5m` (300 seconds).
+
+  `stride` the granularity (or period) of the data returned.  This defaults to `1m` (60 seconds).
+
+3. Start *Custom Metrics - Circonus Adapter*.
 
   ```sh
-  kubectl apply -f https://raw.githubusercontent.com/rileyberton/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml
+  kubectl apply -f https://raw.githubusercontent.com/rileyberton/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml -f your_query_config_map.yaml
   ```
 
-3. Run a test query.
+4. Run a test query.
 
 ```sh
-kubectl get --raw '/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram:create{1,2,3,4,5}|histogram:mean()?labelSelector=circonus_api_key=<your api key>' | jq
+kubectl get --raw '/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram_mean' | jq
 {
   "kind": "ExternalMetricValueList",
   "apiVersion": "external.metrics.k8s.io/v1beta1",
   "metadata": {
-    "selfLink": "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram:create%7B1,2,3,4,5%7D%7Chistogram:mean%28%29"
+    "selfLink": "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram_mean"
   },
   "items": [
     {
-      "metricName": "histogram:create{1,2,3,4,5}|histogram:mean()",
+      "metricName": "histogram_mean",
       "metricLabels": null,
       "timestamp": "2019-11-25T20:53:00Z",
       "value": "3048m"
     }
+    ...
   ]
 }
 ```
-
-Replace `<your api key>` above with your actual API key.
 
 ### Metrics available from Circonus
 

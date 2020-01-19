@@ -15,7 +15,7 @@
 FROM golang:1.13-alpine as builder
 WORKDIR ${GOPATH}/src/github.com/rileyberton/custom-metrics-circonus-adapter
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -o /adapter
+RUN CGO_ENABLED=0 GOOS=linux go build -o /adapter 
 
 RUN apk update \
     && apk add --no-cache govendor \
@@ -26,3 +26,5 @@ FROM gcr.io/google-containers/debian-base-amd64:1.0.0
 COPY --from=builder /adapter adapter
 
 RUN clean-install ca-certificates
+
+
