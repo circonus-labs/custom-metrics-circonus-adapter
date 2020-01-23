@@ -57,7 +57,7 @@ type CirconusProvider struct {
 	kubeClient     *corev1.CoreV1Client
 	circonusApiURL string
 	config         *AdapterConfig
-	queryMap       map[string]*Query
+	queryMap       map[string]Query
 	apiClients     map[string]*circonus.API
 }
 
@@ -91,7 +91,7 @@ func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url strin
 	}
 
 	provider := CirconusProvider{}
-	provider.queryMap = make(map[string]*Query, 0)
+	provider.queryMap = make(map[string]Query, 0)
 	provider.apiClients = make(map[string]*circonus.API, 0)
 	provider.config = cfg
 	provider.circonusApiURL = circonus_api_url
@@ -103,7 +103,7 @@ func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url strin
 			klog.Errorf("Duplicate external name in config: %s", q.ExternalName)
 			return nil
 		}
-		provider.queryMap[q.ExternalName] = &q
+		provider.queryMap[q.ExternalName] = q
 	}
 
 	return &provider
@@ -148,7 +148,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	metricValues := []external_metrics.ExternalMetricValue{}
 
 	// get the query from the configMap
-	var query *Query = nil
+	var query Query
 	var ok bool = false
 	if query, ok = p.queryMap[info.Metric]; !ok {
 		// no matching query, return empty set
@@ -215,24 +215,33 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 
 	// point is an array of [time, value1, value2, ..., valueN]
 	// we will use, time and value1
-	// because we are using the last 5 minutes and data can be delayed return all 5 minutes of data to k8s and let it figure
-	// out the value
+	// because we are using the last N minutes depending on config and data can be delayed
+	//   average all N minutes of data into a single number to give to k8s.  If we return multiple
+	//   it will sum them
+	var finalTime float64 = 0
+	var finalValue float64 = 0
+	var count int = 0
 	for _, p := range data {
+		count++
 		point := p.([]interface{})
 		resultEndTime := point[0].(float64)
-		klog.Infof("Result timestamp: %f", resultEndTime)
+		if resultEndTime > finalTime {
+			finalTime = resultEndTime
+		}
 		if time.Unix(int64(resultEndTime), 0).After(endTime) {
 			return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %s", resultEndTime))
 		}
-		metricValue := external_metrics.ExternalMetricValue{
-			Timestamp:  metav1.NewTime(time.Unix(int64(resultEndTime), 0)),
-			MetricName: info.Metric,
-		}
 		value := point[1].(float64)
-		klog.Infof("Result value: %f", value)
-		metricValue.Value = *resource.NewMilliQuantity(int64(value*1000), resource.DecimalSI)
-		metricValues = append(metricValues, metricValue)
+		finalValue += value
 	}
+	metricValue := external_metrics.ExternalMetricValue{
+		Timestamp:  metav1.NewTime(time.Unix(int64(finalTime), 0)),
+		MetricName: info.Metric,
+	}
+	finalValue = finalValue / float64(count)
+	metricValue.Value = *resource.NewMilliQuantity(int64(finalValue*1000), resource.DecimalSI)
+	metricValues = append(metricValues, metricValue)
+
 	return &external_metrics.ExternalMetricValueList{
 		Items: metricValues,
 	}, nil
