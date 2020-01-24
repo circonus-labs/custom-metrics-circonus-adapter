@@ -19,15 +19,15 @@ package provider
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
-	"os"
 	"time"
 
 	"encoding/json"
 
 	circonus "github.com/circonus-labs/go-apiclient"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+
+	kcorev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/klog"
-
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
@@ -56,9 +55,10 @@ func (c realClock) Now() time.Time {
 type CirconusProvider struct {
 	kubeClient     *corev1.CoreV1Client
 	circonusApiURL string
-	config         *AdapterConfig
 	queryMap       map[string]Query
 	apiClients     map[string]*circonus.API
+	aggFuncs       map[string]bool
+	configChanges  map[string]time.Time
 }
 
 // FromYAML loads the configuration from a blob of YAML.
@@ -70,42 +70,70 @@ func FromYAML(contents []byte) (*AdapterConfig, error) {
 	return &cfg, nil
 }
 
-// NewCirconusProvider creates a CirconusProvider
-func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string, configFile string) provider.MetricsProvider {
-
-	file, err := os.Open(configFile)
-	defer file.Close()
-	if err != nil {
-		klog.Errorf("unable to load adapter config file: %v", err)
-		return nil
+func ReadConfigMap(provider *CirconusProvider, cm kcorev1.ConfigMap, field string) error {
+	config := cm.Data[field]
+	if config == "" {
+		return fmt.Errorf("Cannot load config field: %s", field)
 	}
-	contents, err := ioutil.ReadAll(file)
+	cfg, err := FromYAML([]byte(config))
 	if err != nil {
-		klog.Errorf("unable to load adapter config file: %v", err)
-		return nil
+		return err
 	}
-	cfg, err := FromYAML(contents)
-	if err != nil {
-		klog.Errorf("unable to load adapter config file: %v", err)
-		return nil
-	}
-
-	provider := CirconusProvider{}
-	provider.queryMap = make(map[string]Query, 0)
-	provider.apiClients = make(map[string]*circonus.API, 0)
-	provider.config = cfg
-	provider.circonusApiURL = circonus_api_url
 
 	// go through the cfg and make the external name -> Query map.
 	// also checks the config for uniqueness of external_name
 	for _, q := range cfg.Queries {
-		if _, found := provider.queryMap[q.ExternalName]; found {
-			klog.Errorf("Duplicate external name in config: %s", q.ExternalName)
-			return nil
+		var agg string
+		if provider.aggFuncs[q.Aggregate] {
+			agg = q.Aggregate
+		} else {
+			agg = "average"
 		}
-		provider.queryMap[q.ExternalName] = q
+		q.Aggregate = agg
+		provider.queryMap[cm.Namespace+"/"+q.ExternalName] = q
 	}
+	return nil
+}
 
+func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider) error {
+	for {
+		klog.Infof("Checking config maps for special annotation at: %s", time.Now().UTC())
+		if list, err := kubeClient.ConfigMaps("").List(metav1.ListOptions{}); err == nil && list != nil {
+			klog.Infof("Found %d config maps in the cluster", len(list.Items))
+			for _, cm := range list.Items {
+				ts := provider.configChanges[cm.Namespace+"/"+cm.Name]
+				cts := cm.CreationTimestamp.Time
+				if (cts.After(ts)) && len(cm.Annotations) > 0 {
+					klog.Infof("Check ConfigMap: %s/%s for annotation", cm.Namespace, cm.Name)
+					if x := cm.Annotations["circonus.com/k8s_custom_metrics_config"]; x != "" {
+						klog.Infof("Found config map with required annotation, config field: %s", x)
+						if err := ReadConfigMap(provider, cm, x); err != nil {
+							klog.Errorf("Error reading the config map: %v", err)
+						}
+					}
+					provider.configChanges[cm.Namespace+"/"+cm.Name] = cts
+				}
+			}
+		}
+		time.Sleep(10 * time.Second)
+	}
+	return nil
+}
+
+// NewCirconusProvider creates a CirconusProvider
+func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string, configFile string) provider.MetricsProvider {
+
+	provider := CirconusProvider{}
+	provider.queryMap = make(map[string]Query, 0)
+	provider.apiClients = make(map[string]*circonus.API, 0)
+	provider.circonusApiURL = circonus_api_url
+	provider.configChanges = make(map[string]time.Time, 0)
+	provider.aggFuncs = make(map[string]bool, 3)
+	provider.aggFuncs["average"] = true
+	provider.aggFuncs["min"] = true
+	provider.aggFuncs["max"] = true
+
+	go CheckConfigMaps(kubeClient, &provider)
 	return &provider
 }
 
@@ -150,7 +178,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	// get the query from the configMap
 	var query Query
 	var ok bool = false
-	if query, ok = p.queryMap[info.Metric]; !ok {
+	if query, ok = p.queryMap[namespace+"/"+info.Metric]; !ok {
 		// no matching query, return empty set
 		return &external_metrics.ExternalMetricValueList{
 			Items: metricValues,

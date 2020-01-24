@@ -3,7 +3,7 @@ GOOS?=linux
 OUT_DIR?=build
 PACKAGE=github.com/rileyberton/custom-metrics-circonus-adapter
 PREFIX?=rileyberton
-TAG = v0.0.13
+TAG = v0.0.14
 PKG := $(shell find pkg/* -type f)
 
 .PHONY: build docker push test clean

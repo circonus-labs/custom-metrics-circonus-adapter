@@ -24,4 +24,7 @@ type Query struct {
 	Window time.Duration `yaml:"window"`
 	// Stride specifies the granularity of the data to return, defaults to "1m".
 	Stride time.Duration `yaml:"stride"`
+	// The function to use to combine the data in `window`, one of `average`, `min`, `max`, defaults
+	// to `average`
+	Aggregate string `yaml:"aggregate"`
 }

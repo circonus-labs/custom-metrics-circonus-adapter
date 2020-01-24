@@ -76,8 +76,6 @@ func main() {
 
 	flags.StringVar(&serverOptions.providerAPIURLAttr, "circonus-api-url", serverOptions.providerAPIURLAttr,
 		"The Circonus API URL, defaults to https://api.circonus.com/v2")
-	flags.StringVar(&serverOptions.configFile, "config", serverOptions.configFile,
-		"The full path to the config file to use for query config")
 
 	flags.Parse(os.Args)
 

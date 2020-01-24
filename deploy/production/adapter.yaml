@@ -73,18 +73,11 @@ spec:
     spec:
       serviceAccountName: custom-metrics-circonus-adapter
       containers:
-      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.13
+      - image: docker.io/rileyberton/custom-metrics-circonus-adapter:v0.0.14
         imagePullPolicy: Always
         name: pod-custom-metrics-circonus-adapter
         command:
         - /adapter
-        args:
-        - --config
-        - /etc/adapter/config.yaml
-        volumeMounts:
-        - mountPath: /etc/adapter/
-          name: config
-          readOnly: true
         resources:
           limits:
             cpu: 250m
@@ -92,10 +85,6 @@ spec:
           requests:
             cpu: 250m
             memory: 200Mi
-      volumes:
-      - name: config
-        configMap:
-          name: adapter-config
 ---
 apiVersion: v1
 kind: Service

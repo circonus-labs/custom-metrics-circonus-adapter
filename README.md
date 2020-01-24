@@ -4,130 +4,129 @@ Custom Metrics - Circonus Adapter is an implementation of [External Metrics API]
 using Circonus SaaS as a backend. Its purpose is to enable pod autoscaling based
 on Circonus CAQL statements
 
-This is mostly copied from: https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/custom-metrics-stackdriver-adapter
-
 ## Usage guide
 
 This guide shows how to set up Custom Metrics - Circonus Adapter and export
 metrics to Circonus in a compatible way. Once this is done, you can use
 them to scale your application, following [HPA walkthrough].
 
-### Configure cluster
+### 1. Install the adapter
 
-1. Create Kubernetes cluster or use existing one, see [cluster setup].
-   Requirements:
+`kubectl apply -f https://raw.githubusercontent.com/rileyberton/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml`
 
-   * Kubernetes version 1.8.1 or newer running on GKE or GCE
+This creates a namespace: `custom-metrics` and all of the related perms and service account for the adapter.
 
-   * Monitoring scope `monitoring` set up on cluster nodes. **It is enabled by
-     default, so you should not have to do anything**. See also [OAuth 2.0 API
-     Scopes] to learn more about authentication scopes.
+### 2. Create your CAQL query config file
 
-     You can use following commands to verify that the scopes are set correctly:
-     - For GKE cluster `<my_cluster>`, use following command:
-       ```
-       gcloud container clusters describe <my_cluster>
-       ```
-       For each node pool check the section `oauthScopes` - there should be
-       `https://www.googleapis.com/auth/monitoring` scope listed there.
-     - For a GCE instance `<my_instance>` use following command:
-       ```
-       gcloud compute instances describe <my_instance>
-       ```
-       `https://www.googleapis.com/auth/monitoring` should be listed in the
-       `scopes` section.
+Autoscaling based on external metrics requires predefining all your queries in a config file to be passed to the 
+custom metrics adapter as a config map.  The adapter scours the cluster for configmaps that contain a certain
+annotation: `circonus.com/k8s_custom_metrics_config` which should be set to the name of the ConfigMap field
+that contains the adapter configuration.  An example:
 
-
-     To configure set scopes manually, you can use:
-     - `--scopes` flag if you are using `gcloud container clusters create`
-       command, see [gcloud
-       documentation](https://cloud.google.com/sdk/gcloud/reference/container/clusters/create).
-     - Environment variable `NODE_SCOPES` if you are using [kube-up.sh script].
-       It is enabled by default.
-     - To set scopes in existing clusters you can use `gcloud beta compute
-       instances set-scopes` command, see [gcloud
-       documentation](https://cloud.google.com/sdk/gcloud/reference/beta/compute/instances/set-scopes).
-    * On GKE, you need cluster-admin permissions on your cluster. You can grant
-      your user account these permissions with following command:
-      ```
-      kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $(gcloud config get-value account)
-      ```
-2. Create your autoscaling CAQL query config file
-
-Autoscaling based on external metrics requires predefinig all your queries in a config file to be passed to the 
-custom metrics adapter when it starts.  This is due to a limitation in how the external metric is defined
-in the HPA config: there is no reasonable way to send a complex query in the external metric config and the 
-recommended way for now is to define these complex queries in your custom metrics adapater config and expose the
-results with simple names that can be used by the HPA for scaling.  This approach closely follows the 
-prometheus k8s adapter.
-
-To create your query config map you can follow the `deploy/production/query_config_map_template.yaml` file and edit
-it to include the CAQL statements and names you require for your own autoscaling needs.  A config map might resemble:
-
-```
+```sh 
+riley.berton(k8s: gke...st4_mlb-logs-npd-cluster1) $ cat test_config.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: adapter-config
-  namespace: custom-metrics
+  name: my-adapter-config
+  namespace: my-apps-rule
+  annotations:
+    circonus.com/k8s_custom_metrics_config: "circonus_adapter_config"
 data:
-  config.yaml: |
+  circonus_adapter_config: |
     queries:
     - circonus_api_key: '12345678-1234-1234-1234-123456789012'
       caql: 'histogram:create{1,2,3,4,5}|histogram:mean()'
       external_name: histogram_mean
       window: 5m
       stride: 1m
+  some_other_data_for_my_app: |
+    some_field: foo
+    some_other_field: bar
+```
+(Note that you would replace `circonus_api_key` with your actual api key)
+
+When you `kubectl apply -f test_config.yaml` you will have an external metric called: `histogram_mean` in the 
+`my-apps-rule` namespace:
+
+```
+ riley.berton(k8s: gke...st4_mlb-logs-npd-cluster1) $ kubectl get --raw '/apis/external.metrics.k8s.io/v1beta1' | jq
+{
+  "kind": "APIResourceList",
+  "apiVersion": "v1",
+  "groupVersion": "external.metrics.k8s.io/v1beta1",
+  "resources": [
+    {
+      "name": "my-apps-rule/histogram_mean",
+      "singularName": "",
+      "namespaced": true,
+      "kind": "ExternalMetricValueList",
+      "verbs": [
+        "get"
+      ]
+    }
+  ]
 ```
 
-`queries` is a list of queries.  Each can be associated with a different API key in case you need to pull data
-from more than 1 circonus account.
+And when we query this metric:
 
-  `circonus_api_key` is the API Token that is associated with the circonus account you want to query data from.  
-  Importantly, you cannot query data across accounts with this adapter.
-
-  `caql` is the CAQL statement you wish to execute.  It's important to note that the CAQL statement must produce a 
-  single number per time period (stride).  If you execute a CAQL statement that produces multiple streams of data 
-  at each stride, this adapter will use the first stream in the results so take care.  Also, returning histogram 
-  data will notwork at all, you have to aggregate the data down to a single number if you have a distribution.
-
-  `external_name` is the name you want to call the results.  This is the name you would refer to in your horizontal pod
-  autoscaler configuration.  This must be unique across all the queries in your configuration.  The adapter will error
-  out if there are duplicate names in your config.
-
-  `window` is the time window of data to fetch.  Often metrics that run up against the edge of `now` are incomplete. 
-  `window` allows you to fetch more than 1 point in time.  If you use `5m` for `window` with a `stride` of `1m`, it 
-  will return the last 5 minutes of data with 1 minute granularity.  This defaults to `5m` (300 seconds).
-
-  `stride` the granularity (or period) of the data returned.  This defaults to `1m` (60 seconds).
-
-3. Start *Custom Metrics - Circonus Adapter*.
-
-  ```sh
-  kubectl apply -f https://raw.githubusercontent.com/rileyberton/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml -f your_query_config_map.yaml
-  ```
-
-4. Run a test query.
-
-```sh
-kubectl get --raw '/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram_mean' | jq
+```
+riley.berton(k8s: gke...st4_mlb-logs-npd-cluster1) $ kubectl get --raw '/apis/external.metrics.k8s.io/v1beta1/namespaces/my-apps-rule/histogram_mean' | jq
 {
   "kind": "ExternalMetricValueList",
   "apiVersion": "external.metrics.k8s.io/v1beta1",
   "metadata": {
-    "selfLink": "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/histogram_mean"
+    "selfLink": "/apis/external.metrics.k8s.io/v1beta1/namespaces/my-apps-rule/histogram_mean"
   },
   "items": [
     {
       "metricName": "histogram_mean",
       "metricLabels": null,
-      "timestamp": "2019-11-25T20:53:00Z",
+      "timestamp": "2020-01-24T17:35:00Z",
       "value": "3048m"
     }
-    ...
   ]
 }
 ```
+
+#### Configuration fields
+
+* `queries` - (Required) List(Object): The list of query objects where each object is:
+
+  * `circonus_api_key` - (Required) String: The api key so you can talk to your circonus account.
+  * `caql` - (Required) String: The CAQL statement to execute, see [CAQL](https://login.circonus.com/resources/docs/user/CAQL.html)
+  * `window` - (Optional) String: The amount of time going backwards from `time.Now()` that you want to query to create your metric,
+  defaults to 5 minutes (5m).
+  * `stride` - (Optional) String: The resolution of the response data.  Defaults to 1 minute (1m).
+  * `aggregate` - (Optional) String: The function to use to combine all of the `stride`s in `window` into a single number 
+  since k8s is broken and if you return more than 1 datapoint it just adds them up!?  This defaults to `average` and must
+  be one of: `average`, `min`, `max`
+  
+### 3. Configure your HPA
+
+```
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-hpa
+  namespace: my-namespace
+spec:
+  minReplicas: 1
+  maxReplicas: 15
+  scaleTargetRef:
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    name: my-app
+  metrics:
+    - external:
+        metricName: my_metric 
+        targetValue: 300
+      type: External
+```
+
+The above will scale `my-app` in `my-namespace` using a metric called `my_metric` which would have been previously defined in a
+config map as defined above.
+
 
 ### Metrics available from Circonus
 
