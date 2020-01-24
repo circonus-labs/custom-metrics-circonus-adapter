@@ -58,7 +58,7 @@ type CirconusProvider struct {
 	queryMap       map[string]Query
 	apiClients     map[string]*circonus.API
 	aggFuncs       map[string]bool
-	configChanges  map[string]time.Time
+	configChanges  map[string]string
 }
 
 // FromYAML loads the configuration from a blob of YAML.
@@ -101,9 +101,9 @@ func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider
 		if list, err := kubeClient.ConfigMaps("").List(metav1.ListOptions{}); err == nil && list != nil {
 			klog.Infof("Found %d config maps in the cluster", len(list.Items))
 			for _, cm := range list.Items {
-				ts := provider.configChanges[cm.Namespace+"/"+cm.Name]
-				cts := cm.CreationTimestamp.Time
-				if (cts.After(ts)) && len(cm.Annotations) > 0 {
+				srv := provider.configChanges[cm.Namespace+"/"+cm.Name]
+				rv := cm.ResourceVersion
+				if (srv != rv) && len(cm.Annotations) > 0 {
 					klog.Infof("Check ConfigMap: %s/%s for annotation", cm.Namespace, cm.Name)
 					if x := cm.Annotations["circonus.com/k8s_custom_metrics_config"]; x != "" {
 						klog.Infof("Found config map with required annotation, config field: %s", x)
@@ -111,7 +111,7 @@ func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider
 							klog.Errorf("Error reading the config map: %v", err)
 						}
 					}
-					provider.configChanges[cm.Namespace+"/"+cm.Name] = cts
+					provider.configChanges[cm.Namespace+"/"+cm.Name] = rv
 				}
 			}
 		}
@@ -127,7 +127,7 @@ func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url strin
 	provider.queryMap = make(map[string]Query, 0)
 	provider.apiClients = make(map[string]*circonus.API, 0)
 	provider.circonusApiURL = circonus_api_url
-	provider.configChanges = make(map[string]time.Time, 0)
+	provider.configChanges = make(map[string]string, 0)
 	provider.aggFuncs = make(map[string]bool, 3)
 	provider.aggFuncs["average"] = true
 	provider.aggFuncs["min"] = true
