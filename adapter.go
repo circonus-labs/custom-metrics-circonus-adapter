@@ -26,9 +26,9 @@ import (
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 
+	adapter "github.com/circonus-labs/custom-metrics-circonus-adapter/pkg/adapter/provider"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
-	adapter "github.com/rileyberton/custom-metrics-circonus-adapter/pkg/adapter/provider"
 )
 
 // CirconusAdapter is an adapter for Circonus CAQL

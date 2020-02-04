@@ -1,7 +1,7 @@
 ARCH?=amd64
 GOOS?=linux
 OUT_DIR?=build
-PACKAGE=github.com/rileyberton/custom-metrics-circonus-adapter
+PACKAGE=github.com/circonus-labs/custom-metrics-circonus-adapter
 PREFIX?=rileyberton
 TAG = v0.0.14
 PKG := $(shell find pkg/* -type f)

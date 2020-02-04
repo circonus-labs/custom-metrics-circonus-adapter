@@ -13,7 +13,7 @@
 # limitations under the License.
 
 FROM golang:1.13-alpine as builder
-WORKDIR ${GOPATH}/src/github.com/rileyberton/custom-metrics-circonus-adapter
+WORKDIR ${GOPATH}/src/github.com/circonus-labs/custom-metrics-circonus-adapter
 COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /adapter 
 

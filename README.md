@@ -12,7 +12,7 @@ them to scale your application, following [HPA walkthrough].
 
 ### 1. Install the adapter
 
-`kubectl apply -f https://raw.githubusercontent.com/rileyberton/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml`
+`kubectl apply -f https://raw.githubusercontent.com/circonus-labs/master/custom-metrics-circonus-adapter/deploy/production/adapter.yaml`
 
 This creates a namespace: `custom-metrics` and all of the related perms and service account for the adapter.
 
