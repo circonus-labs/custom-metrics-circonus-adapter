@@ -1,0 +1,29 @@
+run:
+    modules-download-mode: vendor
+linters-settings:
+    golint:
+        min-confidence: 0
+linters:
+    disable-all: true
+    fast: true
+    enable:
+        - gofmt
+        - govet
+        - errcheck
+        - staticcheck
+        - unused
+        - gosimple
+        - structcheck
+        - varcheck
+        - ineffassign
+        - deadcode
+        - typecheck
+        - golint
+        - gosec
+        - interfacer
+        - misspell
+        - unparam
+        - prealloc
+        - scopelint
+        - gocritic
+
