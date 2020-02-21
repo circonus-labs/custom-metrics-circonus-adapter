@@ -8,11 +8,11 @@ PKG := $(shell find pkg/* -type f)
 
 .PHONY: build docker push test clean
 
-lint
+lint:
 	golangci-lint run
 
 release:
-	goreleaser --rm-dist --release-notes <(cat CHANGELOG.md | awk "/^# v[0-9]/{p=0} /^# $(git describe --tags --abbrev=0)/{p=1} p")
+	goreleaser --rm-dist
 
 build: build/adapter
 
