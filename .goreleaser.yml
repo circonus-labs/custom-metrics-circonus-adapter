@@ -3,6 +3,7 @@ project_name: custom-metrics-circonus-adapter
 before:
     hooks:
         - go mod tidy
+        - golangci-lint run
         
 builds:
     -
