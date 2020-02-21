@@ -1,19 +1,5 @@
-/*
-Copyright 2017 The Kubernetes Authors.
-Copyright 2019 Riley Berton
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-		http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Use of this source code is governed by a
+// license that can be found in the LICENSE file.
 
 package provider
 
@@ -41,9 +27,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-type clock interface {
-	Now() time.Time
-}
+// type clock interface {
+// 	Now() time.Time
+// }
 
 type realClock struct{}
 
@@ -53,7 +39,7 @@ func (c realClock) Now() time.Time {
 
 // CirconusProvider is a provider of custom metrics from Circonus CAQL.
 type CirconusProvider struct {
-	kubeClient     *corev1.CoreV1Client
+	// kubeClient     *corev1.CoreV1Client
 	circonusApiURL string
 	queryMap       map[string]Query
 	apiClients     map[string]*circonus.API
@@ -117,23 +103,25 @@ func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider
 		}
 		time.Sleep(10 * time.Second)
 	}
-	return nil
+	// return nil
 }
 
 // NewCirconusProvider creates a CirconusProvider
 func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string, configFile string) provider.MetricsProvider {
 
 	provider := CirconusProvider{}
-	provider.queryMap = make(map[string]Query, 0)
-	provider.apiClients = make(map[string]*circonus.API, 0)
+	provider.queryMap = make(map[string]Query)
+	provider.apiClients = make(map[string]*circonus.API)
 	provider.circonusApiURL = circonus_api_url
-	provider.configChanges = make(map[string]string, 0)
+	provider.configChanges = make(map[string]string)
 	provider.aggFuncs = make(map[string]bool, 3)
 	provider.aggFuncs["average"] = true
 	provider.aggFuncs["min"] = true
 	provider.aggFuncs["max"] = true
 
-	go CheckConfigMaps(kubeClient, &provider)
+	go func() {
+		_ = CheckConfigMaps(kubeClient, &provider)
+	}()
 	return &provider
 }
 
@@ -177,7 +165,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 
 	// get the query from the configMap
 	var query Query
-	var ok bool = false
+	ok := false
 	if query, ok = p.queryMap[namespace+"/"+info.Metric]; !ok {
 		// no matching query, return empty set
 		return &external_metrics.ExternalMetricValueList{
@@ -229,7 +217,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	klog.Infof("Response: %s", string(jsonBytes))
 
 	var result map[string]interface{}
-	json.Unmarshal(jsonBytes, &result)
+	_ = json.Unmarshal(jsonBytes, &result)
 
 	if _, ok := result["_data"]; !ok {
 		return nil, apierr.NewInternalError(fmt.Errorf("Circonus response missing _data field"))
@@ -257,7 +245,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 			finalTime = resultEndTime
 		}
 		if time.Unix(int64(resultEndTime), 0).After(endTime) {
-			return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %s", resultEndTime))
+			return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %f", resultEndTime))
 		}
 		value := point[1].(float64)
 		finalValue += value
