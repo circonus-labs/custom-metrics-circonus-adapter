@@ -67,7 +67,7 @@ func main() {
 	flags.StringVar(&serverOptions.providerAPIURLAttr, "circonus-api-url", serverOptions.providerAPIURLAttr,
 		"The Circonus API URL, defaults to https://api.circonus.com/v2")
 
-	flags.Parse(os.Args)
+	_ = flags.Parse(os.Args)
 
 	metricsProvider := cmd.makeProviderOrDie(&serverOptions)
 

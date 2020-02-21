@@ -31,7 +31,7 @@ import (
 // 	Now() time.Time
 // }
 
-type realClock struct{}
+type realClock struct{} //nolint:unused
 
 func (c realClock) Now() time.Time {
 	return time.Now()
@@ -40,7 +40,7 @@ func (c realClock) Now() time.Time {
 // CirconusProvider is a provider of custom metrics from Circonus CAQL.
 type CirconusProvider struct {
 	// kubeClient     *corev1.CoreV1Client
-	circonusApiURL string
+	circonusAPIURL string
 	queryMap       map[string]Query
 	apiClients     map[string]*circonus.API
 	aggFuncs       map[string]bool
@@ -59,7 +59,7 @@ func FromYAML(contents []byte) (*AdapterConfig, error) {
 func ReadConfigMap(provider *CirconusProvider, cm kcorev1.ConfigMap, field string) error {
 	config := cm.Data[field]
 	if config == "" {
-		return fmt.Errorf("Cannot load config field: %s", field)
+		return fmt.Errorf("cannot load config field: %s", field)
 	}
 	cfg, err := FromYAML([]byte(config))
 	if err != nil {
@@ -81,7 +81,7 @@ func ReadConfigMap(provider *CirconusProvider, cm kcorev1.ConfigMap, field strin
 	return nil
 }
 
-func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider) error {
+func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider) error { //nolint:interfacer
 	for {
 		klog.Infof("Checking config maps for special annotation at: %s", time.Now().UTC())
 		if list, err := kubeClient.ConfigMaps("").List(metav1.ListOptions{}); err == nil && list != nil {
@@ -107,12 +107,12 @@ func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider
 }
 
 // NewCirconusProvider creates a CirconusProvider
-func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonus_api_url string, configFile string) provider.MetricsProvider {
+func NewCirconusProvider(kubeClient *corev1.CoreV1Client, circonusAPIURL string, configFile string) provider.MetricsProvider {
 
 	provider := CirconusProvider{}
 	provider.queryMap = make(map[string]Query)
 	provider.apiClients = make(map[string]*circonus.API)
-	provider.circonusApiURL = circonus_api_url
+	provider.circonusAPIURL = circonusAPIURL
 	provider.configChanges = make(map[string]string)
 	provider.aggFuncs = make(map[string]bool, 3)
 	provider.aggFuncs["average"] = true
@@ -182,7 +182,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		apiClient = c
 	} else {
 		apiConfig := &circonus.Config{
-			URL:      p.circonusApiURL,
+			URL:      p.circonusAPIURL,
 			TokenKey: query.CirconusAPIKey,
 			TokenApp: "custom-metrics-circonus-adapter",
 		}
@@ -220,13 +220,13 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	_ = json.Unmarshal(jsonBytes, &result)
 
 	if _, ok := result["_data"]; !ok {
-		return nil, apierr.NewInternalError(fmt.Errorf("Circonus response missing _data field"))
+		return nil, apierr.NewInternalError(fmt.Errorf("circonus response missing _data field"))
 	}
 
 	data := result["_data"].([]interface{})
-	if len(data) <= 0 {
+	if len(data) == 0 {
 		// This shouldn't happen with correct query to Circonus
-		return nil, apierr.NewInternalError(fmt.Errorf("Empty time series returned from Circonus CAQL query"))
+		return nil, apierr.NewInternalError(fmt.Errorf("empty time series returned from Circonus CAQL query"))
 	}
 
 	// point is an array of [time, value1, value2, ..., valueN]
@@ -245,7 +245,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 			finalTime = resultEndTime
 		}
 		if time.Unix(int64(resultEndTime), 0).After(endTime) {
-			return nil, apierr.NewInternalError(fmt.Errorf("Timeseries from Circonus has incorrect end time: %f", resultEndTime))
+			return nil, apierr.NewInternalError(fmt.Errorf("timeseries from Circonus has incorrect end time: %f", resultEndTime))
 		}
 		value := point[1].(float64)
 		finalValue += value
@@ -254,7 +254,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		Timestamp:  metav1.NewTime(time.Unix(int64(finalTime), 0)),
 		MetricName: info.Metric,
 	}
-	finalValue = finalValue / float64(count)
+	finalValue /= float64(count)
 	metricValue.Value = *resource.NewMilliQuantity(int64(finalValue*1000), resource.DecimalSI)
 	metricValues = append(metricValues, metricValue)
 
