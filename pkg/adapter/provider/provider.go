@@ -254,7 +254,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		finalValue += value
 	}
 	if count == 0 {
-		return nil, apierr.NewInternalError(fmt.Errorf("No datapoints found in result"))
+		return nil, apierr.NewInternalError(fmt.Errorf("no datapoints found in result"))
 	}
 	metricValue := external_metrics.ExternalMetricValue{
 		Timestamp:  metav1.NewTime(time.Unix(int64(finalTime), 0)),
