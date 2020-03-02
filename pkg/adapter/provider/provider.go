@@ -250,6 +250,9 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 	var finalValue float64 = 0
 	var count int = 0
 	for _, p := range data {
+		if p == nil {
+			continue
+		}
 		count++
 		point := p.([]interface{})
 		resultEndTime := point[0].(float64)
@@ -261,6 +264,9 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		}
 		value := point[1].(float64)
 		finalValue += value
+	}
+	if count == 0 {
+		return nil, apierr.NewInternalError(fmt.Errorf("No datapoints found in result"))
 	}
 	metricValue := external_metrics.ExternalMetricValue{
 		Timestamp:  metav1.NewTime(time.Unix(int64(finalTime), 0)),
