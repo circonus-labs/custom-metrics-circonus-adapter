@@ -1,3 +1,7 @@
+# v0.1.1
+
+* upd: deal with `_data = [null,null,null,...]`
+
 # v0.1.0
 
 * initial (circonuslabs)
