@@ -1,3 +1,7 @@
+# v0.1.2
+
+* re-add custom metrics provider
+
 # v0.1.1
 
 * upd: deal with `_data = [null,null,null,...]`
