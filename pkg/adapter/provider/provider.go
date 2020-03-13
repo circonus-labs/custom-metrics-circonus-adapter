@@ -140,7 +140,7 @@ func (p *CirconusProvider) GetMetricByName(name types.NamespacedName, info provi
 // GetMetricBySelector fetches a particular metric for a set of objects matching
 // the given label selector. The namespace will be empty if the metric is root-scoped.
 func (p *CirconusProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValueList, error) {
-	return nil, NewOperationNotSupportedError("GetMetricByName not supported at this time")
+	return nil, NewOperationNotSupportedError("GetMetricBySelector not supported at this time")
 }
 
 func CreateURLWithQuery(uri string, param map[string]interface{}) (string, error) {

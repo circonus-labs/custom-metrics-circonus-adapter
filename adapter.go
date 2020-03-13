@@ -71,6 +71,7 @@ func main() {
 
 	metricsProvider := cmd.makeProviderOrDie(&serverOptions)
 
+	cmd.WithCustomMetrics(metricsProvider)
 	cmd.WithExternalMetrics(metricsProvider)
 
 	if err := cmd.Run(wait.NeverStop); err != nil {
