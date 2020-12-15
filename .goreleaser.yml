@@ -32,8 +32,8 @@ dockers:
         binaries:
             - sbin/adapter
         image_templates:
-            - "circonuslabs/{{.ProjectName}}:{{.Tag}}"
-            - "circonuslabs/{{.ProjectName}}:latest"
+            - "circonus/{{.ProjectName}}:{{.Tag}}"
+            - "circonus/{{.ProjectName}}:latest"
         skip_push: false
         dockerfile: Dockerfile
         build_flag_templates:
