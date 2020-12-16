@@ -30,7 +30,7 @@ dockers:
         goarch: amd64
         goarm: ''
         binaries:
-            - sbin/adapter
+            - adapter
         image_templates:
             - "circonus/{{.ProjectName}}:{{.Tag}}"
             - "circonus/{{.ProjectName}}:latest"
@@ -59,9 +59,6 @@ release:
         name: custom-metrics-circonus-adapter
     draft: false
     prerelease: auto
-
-snapshot:
-    name_template: SNAPSHOT-{{.Commit}}
 
 checksum:
     name_template: "{{.ProjectName}}_checksums.txt"

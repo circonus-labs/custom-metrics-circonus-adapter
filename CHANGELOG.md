@@ -1,6 +1,7 @@
 # v0.1.3
 
 * upd: change [dockerhub organization](https://hub.docker.com/repository/docker/circonus/custom-metrics-circonus-adapter) circonuslabs->circonus
+* fix: goreleaser config syntax for update
 
 # v0.1.2
 
