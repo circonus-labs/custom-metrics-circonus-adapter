@@ -2,7 +2,7 @@ ARCH?=amd64
 GOOS?=linux
 OUT_DIR?=build
 PACKAGE=github.com/circonus-labs/custom-metrics-circonus-adapter
-PREFIX?=circonuslabs
+PREFIX?=circonus
 TAG = v0.1.0
 PKG := $(shell find pkg/* -type f)
 
