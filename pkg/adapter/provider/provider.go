@@ -259,7 +259,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		// point_data == []interface {}
 		point_data := point[1]
 		// first_point == interface {}
-		first_point := point_data[0]
+		first_point := point_data.([]float64)[0]
 		// cast to float64
 		value := float64(first_point)
 		finalValue += value
