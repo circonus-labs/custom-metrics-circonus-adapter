@@ -1,3 +1,9 @@
+# v0.1.4
+
+* fix: tool syntax
+* fix: syntax error
+* fix: CAQL response parsing
+
 # v0.1.3
 
 * upd: change [dockerhub organization](https://hub.docker.com/repository/docker/circonus/custom-metrics-circonus-adapter) circonuslabs->circonus
