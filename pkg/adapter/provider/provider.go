@@ -256,7 +256,12 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		if time.Unix(int64(resultEndTime), 0).After(endTime) {
 			return nil, apierr.NewInternalError(fmt.Errorf("timeseries from Circonus has incorrect end time: %f", resultEndTime))
 		}
-		value := point[1].([]float64)[0]
+		// point_data == []interface {}
+		point_data := point[1]
+		// first_point == interface {}
+		first_point := point_data[0]
+		// cast to float64
+		value := float64(first_point)
 		finalValue += value
 	}
 	if count == 0 {
