@@ -229,8 +229,14 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		return nil, apierr.NewInternalError(fmt.Errorf("empty time series returned from Circonus CAQL query"))
 	}
 
-	// point is an array of [time, value1, value2, ..., valueN]
-	// we will use, time and value1
+	// point is an array of [time, [value1, value2, ..., valueN]]
+	// the embedded array is the output of CAQL where they can be multiple streams output.
+	// this is built to deal with a single stream coming out so we only grab the first value in the embedded array.
+	//
+	// example return data:
+	// {"_data":[[1611606180,[0]],[1611606240,[0]],[1611606300,[0]],[1611606360,[0]],[1611606420,[0]],[1611606480,[0]]],
+	//  "_end":1611606540,"_period":60, ...}
+	//
 	// because we are using the last N minutes depending on config and data can be delayed
 	//   average all N minutes of data into a single number to give to k8s.  If we return multiple
 	//   it will sum them
@@ -250,7 +256,7 @@ func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector la
 		if time.Unix(int64(resultEndTime), 0).After(endTime) {
 			return nil, apierr.NewInternalError(fmt.Errorf("timeseries from Circonus has incorrect end time: %f", resultEndTime))
 		}
-		value := point[1].(float64)
+		value := point[1][0].(float64)
 		finalValue += value
 	}
 	if count == 0 {
