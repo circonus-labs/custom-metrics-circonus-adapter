@@ -1,3 +1,7 @@
+# v0.1.6
+
+* fix: type assertion
+
 # v0.1.5
 
 * fix: type assertion
