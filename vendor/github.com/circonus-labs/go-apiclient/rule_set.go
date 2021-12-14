@@ -20,28 +20,34 @@ import (
 
 // RuleSetRule defines a ruleset rule
 type RuleSetRule struct {
-	Criteria          string      `json:"criteria"`                     // string
-	Severity          uint        `json:"severity"`                     // uint
-	Value             interface{} `json:"value"`                        // BUG doc: string, api: actual type returned switches based on Criteria
-	Wait              uint        `json:"wait"`                         // uint
-	WindowingDuration uint        `json:"windowing_duration,omitempty"` // uint
-	WindowingFunction *string     `json:"windowing_function,omitempty"` // string or null
+	Value                interface{} `json:"value"`                            // BUG doc: string, api: actual type returned switches based on Criteria
+	WindowingFunction    *string     `json:"windowing_function,omitempty"`     // string or null
+	Criteria             string      `json:"criteria"`                         // string
+	Severity             uint        `json:"severity"`                         // uint
+	Wait                 uint        `json:"wait"`                             // uint
+	WindowingDuration    uint        `json:"windowing_duration,omitempty"`     // uint
+	WindowingMinDuration uint        `json:"windowing_min_duration,omitempty"` // uint
 }
 
 // RuleSet defines a ruleset. See https://login.circonus.com/resources/api/calls/rule_set for more information.
 type RuleSet struct {
-	CheckCID      string             `json:"check"`            // string
-	CID           string             `json:"_cid,omitempty"`   // string
-	ContactGroups map[uint8][]string `json:"contact_groups"`   // [] len 5
-	Derive        *string            `json:"derive,omitempty"` // string or null
-	Link          *string            `json:"link"`             // string or null
-	MetricName    string             `json:"metric_name"`      // string
-	MetricTags    []string           `json:"metric_tags"`      // [] len >= 0
-	MetricType    string             `json:"metric_type"`      // string
-	Notes         *string            `json:"notes"`            // string or null
-	Parent        *string            `json:"parent,omitempty"` // string or null
-	Rules         []RuleSetRule      `json:"rules"`            // [] len >= 1
-	Tags          []string           `json:"tags"`             // [] len >= 0
+	CID           string             `json:"_cid,omitempty"`           // string
+	Host          string             `json:"_host,omitempty"`          // string
+	CheckCID      string             `json:"check"`                    // string
+	ContactGroups map[uint8][]string `json:"contact_groups"`           // [] len 5
+	Filter        string             `json:"filter,omitempty"`         // string
+	Link          *string            `json:"link"`                     // string or null
+	LookupKey     *string            `json:"lookup_key"`               // string or null
+	MetricName    string             `json:"metric_name,omitempty"`    // string (name or pattern)
+	MetricPattern string             `json:"metric_pattern,omitempty"` // string (name or pattern)
+	MetricTags    []string           `json:"metric_tags"`              // [] len >= 0
+	MetricType    string             `json:"metric_type"`              // string
+	Name          string             `json:"name,omitempty"`           // string
+	Notes         *string            `json:"notes"`                    // string or null
+	UserJSON      json.RawMessage    `json:"user_json,omitempty"`      // // abitrary json the ruleset creator supplies.. this is opaque and only has to be parseable JSON <= 4096 chars
+	Parent        *string            `json:"parent,omitempty"`         // string or null
+	Rules         []RuleSetRule      `json:"rules"`                    // [] len >= 1
+	Tags          []string           `json:"tags"`                     // [] len >= 0
 }
 
 // NewRuleSet returns a new RuleSet (with defaults if applicable)

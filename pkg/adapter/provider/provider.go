@@ -4,6 +4,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"encoding/json"
 
 	circonus "github.com/circonus-labs/go-apiclient"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
 	kcorev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +34,7 @@ import (
 
 type realClock struct{} //nolint:unused
 
+//nolint:unused
 func (c realClock) Now() time.Time {
 	return time.Now()
 }
@@ -84,7 +86,7 @@ func ReadConfigMap(provider *CirconusProvider, cm kcorev1.ConfigMap, field strin
 func CheckConfigMaps(kubeClient *corev1.CoreV1Client, provider *CirconusProvider) error { //nolint:interfacer
 	for {
 		klog.Infof("Checking config maps for special annotation at: %s", time.Now().UTC())
-		if list, err := kubeClient.ConfigMaps("").List(metav1.ListOptions{}); err == nil && list != nil {
+		if list, err := kubeClient.ConfigMaps("").List(context.Background(), metav1.ListOptions{}); err == nil && list != nil {
 			klog.Infof("Found %d config maps in the cluster", len(list.Items))
 			for _, cm := range list.Items {
 				srv := provider.configChanges[cm.Namespace+"/"+cm.Name]
@@ -133,13 +135,13 @@ func (p *CirconusProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // GetMetricByName fetches a particular metric for a particular object.
 // The namespace will be empty if the metric is root-scoped.
-func (p *CirconusProvider) GetMetricByName(name types.NamespacedName, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValue, error) {
+func (p *CirconusProvider) GetMetricByName(ctx context.Context, name types.NamespacedName, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValue, error) {
 	return nil, NewOperationNotSupportedError("GetMetricByName not supported at this time")
 }
 
 // GetMetricBySelector fetches a particular metric for a set of objects matching
 // the given label selector. The namespace will be empty if the metric is root-scoped.
-func (p *CirconusProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValueList, error) {
+func (p *CirconusProvider) GetMetricBySelector(ctx context.Context, namespace string, selector labels.Selector, info provider.CustomMetricInfo, metricSelector labels.Selector) (*custom_metrics.MetricValueList, error) {
 	return nil, NewOperationNotSupportedError("GetMetricBySelector not supported at this time")
 }
 
@@ -160,7 +162,7 @@ func CreateURLWithQuery(uri string, param map[string]interface{}) (string, error
 
 // GetExternalMetric queries Circonus using CAQL to fetch data
 // namespace is ignored as well as labels.Selector
-func (p *CirconusProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+func (p *CirconusProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	metricValues := []external_metrics.ExternalMetricValue{}
 
 	// get the query from the configMap

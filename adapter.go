@@ -1,6 +1,7 @@
 // Use of this source code is governed by a
 // license that can be found in the LICENSE file.
 
+//go:build go1.13
 // +build go1.13
 
 package main
@@ -17,8 +18,8 @@ import (
 	"k8s.io/klog"
 
 	adapter "github.com/circonus-labs/custom-metrics-circonus-adapter/pkg/adapter/provider"
-	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 )
 
 // CirconusAdapter is an adapter for Circonus CAQL
