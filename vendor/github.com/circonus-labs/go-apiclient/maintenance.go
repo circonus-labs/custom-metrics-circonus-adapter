@@ -20,14 +20,14 @@ import (
 
 // Maintenance defines a maintenance window. See https://login.circonus.com/resources/api/calls/maintenance for more information.
 type Maintenance struct {
+	Severities interface{} `json:"severities,omitempty"` // []string NOTE can be set with CSV string or []string
 	CID        string      `json:"_cid,omitempty"`       // string
 	Item       string      `json:"item,omitempty"`       // string
 	Notes      string      `json:"notes,omitempty"`      // string
-	Severities interface{} `json:"severities,omitempty"` // []string NOTE can be set with CSV string or []string
+	Type       string      `json:"type,omitempty"`       // string
+	Tags       []string    `json:"tags,omitempty"`       // [] len >= 0
 	Start      uint        `json:"start,omitempty"`      // uint
 	Stop       uint        `json:"stop,omitempty"`       // uint
-	Tags       []string    `json:"tags,omitempty"`       // [] len >= 0
-	Type       string      `json:"type,omitempty"`       // string
 }
 
 // NewMaintenanceWindow returns a new Maintenance window (with defaults, if applicable)
@@ -143,7 +143,7 @@ func (a *API) CreateMaintenanceWindow(cfg *Maintenance) (*Maintenance, error) {
 
 	result, err := a.Post(config.MaintenancePrefix, jsonCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating maintenace window")
+		return nil, errors.Wrap(err, "creating maintenance window")
 	}
 
 	window := &Maintenance{}

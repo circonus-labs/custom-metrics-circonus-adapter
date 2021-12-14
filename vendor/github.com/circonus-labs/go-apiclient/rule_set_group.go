@@ -21,24 +21,24 @@ import (
 // RuleSetGroupFormula defines a formula for raising alerts
 type RuleSetGroupFormula struct {
 	Expression    interface{} `json:"expression"`     // string or uint BUG doc: string, api: string or numeric
-	RaiseSeverity uint        `json:"raise_severity"` // uint
+	RaiseSeverity interface{} `json:"raise_severity"` // string or uint BUG doc: numeric, api: string or numeric
 	Wait          uint        `json:"wait"`           // uint
 }
 
 // RuleSetGroupCondition defines conditions for raising alerts
 type RuleSetGroupCondition struct {
-	MatchingSeverities []string `json:"matching_serverities"` // [] len >= 1
-	RuleSetCID         string   `json:"rule_set"`             // string
+	RuleSetCID         string   `json:"rule_set"`            // string
+	MatchingSeverities []string `json:"matching_severities"` // [] len >= 1
 }
 
 // RuleSetGroup defines a ruleset group. See https://login.circonus.com/resources/api/calls/rule_set_group for more information.
 type RuleSetGroup struct {
 	CID               string                  `json:"_cid,omitempty"`      // string
+	Name              string                  `json:"name"`                // string
+	Tags              []string                `json:"tags"`                // [] len >= 0
 	ContactGroups     map[uint8][]string      `json:"contact_groups"`      // [] len == 5
 	Formulas          []RuleSetGroupFormula   `json:"formulas"`            // [] len >= 0
-	Name              string                  `json:"name"`                // string
 	RuleSetConditions []RuleSetGroupCondition `json:"rule_set_conditions"` // [] len >= 1
-	Tags              []string                `json:"tags"`                // [] len >= 0
 }
 
 // NewRuleSetGroup returns a new RuleSetGroup (with defaults, if applicable)
