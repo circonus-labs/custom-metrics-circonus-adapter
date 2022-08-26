@@ -3,7 +3,7 @@ GOOS?=linux
 OUT_DIR?=build
 PACKAGE=github.com/circonus-labs/custom-metrics-circonus-adapter
 PREFIX?=circonus
-TAG = v0.1.0
+TAG = v0.1.9
 PKG := $(shell find pkg/* -type f)
 
 .PHONY: build docker push test clean

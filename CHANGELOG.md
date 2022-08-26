@@ -1,3 +1,8 @@
+# v0.1.9
+
+* fix: Correct a bug that lead to panics when CAQL data requested contained
+null data values.
+
 # v0.1.6
 
 * fix: type assertion
