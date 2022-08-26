@@ -251,7 +251,7 @@ func (p *CirconusProvider) GetExternalMetric(ctx context.Context, namespace stri
 		}
 		count++
 		point := p.([]interface{})
-		if point[0] == nil {
+		if len(point) < 1 || point[0] == nil {
 			continue
 		}
 		resultEndTime := point[0].(float64)
@@ -262,11 +262,11 @@ func (p *CirconusProvider) GetExternalMetric(ctx context.Context, namespace stri
 			return nil, apierr.NewInternalError(fmt.Errorf("timeseries from Circonus has incorrect end time: %f", resultEndTime))
 		}
 		// point_data == []interface {}
-		if point[1] == nil {
+		if len(point) < 2 || point[1] == nil {
 			continue
 		}
 		pointData := point[1].([]interface{})
-		if pointData[0] == nil {
+		if len(pointData) < 1 || pointData[0] == nil {
 			continue
 		}
 		value := pointData[0].(float64)
